@@ -339,7 +339,12 @@ impl Emitter {
             write!(
                 target, " {}=\"{}\"",
                 attr.name.repr_display(),
-                if self.config.perform_escaping { escape_str_attribute(attr.value) } else { Cow::Borrowed(attr.value) }
+                if self.config.perform_escaping {
+                    escape_str_attribute(attr.value,&self.config.extra_characters_attributes)
+                }
+                else {
+                    Cow::Borrowed(attr.value)
+                }
             )?
         }
         Ok(())
@@ -405,7 +410,7 @@ impl Emitter {
         self.fix_non_empty_element(target)?;
         target.write_all(
             (if self.config.perform_escaping {
-                escape_str_pcdata(content)
+                escape_str_pcdata(content, &self.config.extra_characters_pcdata)
             } else {
                 Cow::Borrowed(content)
             }).as_bytes()

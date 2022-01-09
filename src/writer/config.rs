@@ -2,6 +2,7 @@
 
 use std::io::Write;
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 use writer::EventWriter;
 
@@ -82,6 +83,20 @@ pub struct EmitterConfig {
     /// this option is also true, the same element would appear `<a />`. If this option is false,
     /// then the same element would appear `<a/>`.
     pub pad_self_closing: bool,
+
+    /// A map of extra characters to be escaped on PCDATA sections. Default is an empty map.
+    ///
+    /// If `perform_escaping` is true the emitter escapes the characters
+    /// which can't appear in PCDATA sections. However, it can be useful to escape other characters,
+    /// like `>` by `&gt;`, which are not required to be escaped by the XML spec,
+    /// but that might be required for an specific use case, still producing a semantically
+    /// equivalent XML document.
+    pub extra_characters_pcdata: HashMap<char, &'static str>,
+
+    /// A map of extra characters to be escaped on attributes. Default is an empty map.
+    ///
+    /// Similar to `extra_characters_pcdata`, but for attributes.
+    pub extra_characters_attributes: HashMap<char, &'static str>,
 }
 
 impl EmitterConfig {
@@ -109,7 +124,9 @@ impl EmitterConfig {
             cdata_to_characters: false,
             keep_element_names_stack: true,
             autopad_comments: true,
-            pad_self_closing: true
+            pad_self_closing: true,
+            extra_characters_pcdata: HashMap::new(),
+            extra_characters_attributes: HashMap::new(),
         }
     }
 
@@ -134,6 +151,41 @@ impl EmitterConfig {
     #[inline]
     pub fn create_writer<W: Write>(self, sink: W) -> EventWriter<W> {
         EventWriter::new_with_config(sink, self)
+    }
+
+
+    /// Adds a new character escape mapping and returns an updated config object.
+    ///
+    /// This is a convenience method for adding additional character escape mappings to the
+    /// XML parser, for both PCDATA and attributes.
+    /// An example:
+    ///
+    /// ```rust
+    /// use xml::writer::EmitterConfig;
+    ///
+    /// let mut target: Vec<u8> = Vec::new();
+    ///
+    /// let writer = EmitterConfig::new()
+    ///     .add_character_pcdata(' ', "&nbsp;")
+    ///     .add_character_pcdata('©', "&copy;")
+    ///     .add_character_attributes('©', "&copy;")
+    ///     .create_writer(&mut target);
+    /// ```
+    pub fn add_character_pcdata<S: Into<char>, T: Into<&'static str>>(
+        mut self,
+        character: S,
+        value: T
+    ) -> EmitterConfig {
+        self.extra_characters_pcdata.insert(character.into(), value.into());
+        self
+    }
+    pub fn add_character_attributes<S: Into<char>, T: Into<&'static str>>(
+        mut self,
+        character: S,
+        value: T
+    ) -> EmitterConfig {
+        self.extra_characters_attributes.insert(character.into(), value.into());
+        self
     }
 }
 

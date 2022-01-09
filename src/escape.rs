@@ -1,6 +1,7 @@
 //! Contains functions for performing XML special characters escaping.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 enum Value {
     Char(char),
@@ -8,7 +9,7 @@ enum Value {
 }
 
 impl Value {
-    fn dispatch_for_attribute(c: char) -> Value {
+    fn dispatch_for_attribute(c: char, extra: &HashMap<char, &'static str>) -> Value {
         match c {
             '<'  => Value::Str("&lt;"),
             '>'  => Value::Str("&gt;"),
@@ -17,15 +18,21 @@ impl Value {
             '&'  => Value::Str("&amp;"),
             '\n' => Value::Str("&#xA;"),
             '\r' => Value::Str("&#xD;"),
-            _    => Value::Char(c)
+            _    => match extra.get(&c) {
+                Some(value) => Value::Str(value),
+                None => Value::Char(c)
+            }
         }
     }
 
-    fn dispatch_for_pcdata(c: char) -> Value {
+    fn dispatch_for_pcdata(c: char, extra: &HashMap<char, &'static str>) -> Value {
         match c {
             '<'  => Value::Str("&lt;"),
             '&'  => Value::Str("&amp;"),
-            _    => Value::Char(c)
+            _    => match extra.get(&c) {
+                Some(value) => Value::Str(value),
+                None => Value::Char(c)
+            }
         }
     }
 }
@@ -70,9 +77,13 @@ impl<'a> Extend<(usize, Value)> for Process<'a> {
     }
 }
 
-fn escape_str(s: &str, dispatch: fn(char) -> Value) -> Cow<str> {
+fn escape_str<'a>(
+    s: &'a str,
+    dispatch: fn(char, &HashMap<char, &'static str>) -> Value,
+    extra: &HashMap<char, &'static str>
+) -> Cow<'a, str> {
     let mut p = Process::Borrowed(s);
-    p.extend(s.char_indices().map(|(ind, c)| (ind, dispatch(c))));
+    p.extend(s.char_indices().map(|(ind, c)| (ind, dispatch(c, extra))));
     p.into_result()
 }
 
@@ -91,8 +102,8 @@ fn escape_str(s: &str, dispatch: fn(char) -> Value) -> Cow<str> {
 ///
 /// Does not perform allocations if the given string does not contain escapable characters.
 #[inline]
-pub fn escape_str_attribute(s: &str) -> Cow<str> {
-    escape_str(s, Value::dispatch_for_attribute)
+pub fn escape_str_attribute<'a>(s: &'a str, extra: &HashMap<char, &'static str>) -> Cow<'a, str> {
+    escape_str(s, Value::dispatch_for_attribute, extra)
 }
 
 /// Performs escaping of common XML characters inside PCDATA.
@@ -107,20 +118,29 @@ pub fn escape_str_attribute(s: &str) -> Cow<str> {
 ///
 /// Does not perform allocations if the given string does not contain escapable characters.
 #[inline]
-pub fn escape_str_pcdata(s: &str) -> Cow<str> {
-    escape_str(s, Value::dispatch_for_pcdata)
+pub fn escape_str_pcdata<'a>(s: &'a str, extra: &HashMap<char, &'static str>) -> Cow<'a, str> {
+    escape_str(s, Value::dispatch_for_pcdata, extra)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use super::{escape_str_pcdata, escape_str_attribute};
 
     // TODO: add more tests
 
     #[test]
     fn test_escape_multibyte_code_points() {
-        assert_eq!(escape_str_attribute("☃<"), "☃&lt;");
-        assert_eq!(escape_str_pcdata("☃<"), "☃&lt;");
+        assert_eq!(escape_str_attribute("☃<", &HashMap::new()), "☃&lt;");
+        assert_eq!(escape_str_pcdata("☃<", &HashMap::new()), "☃&lt;");
+        assert_eq!(escape_str_attribute(
+            "☃<.",
+            &HashMap::from([('.', "&period;")])
+        ), "☃&lt;&period;");
+        assert_eq!(escape_str_pcdata(
+            "☃<.",
+            &HashMap::from([('.', "&period;")])
+        ), "☃&lt;&period;");
     }
 }
 

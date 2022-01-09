@@ -1,6 +1,7 @@
 //! Contains XML attributes manipulation types and functions.
 //!
 
+use std::collections::HashMap;
 use std::fmt;
 
 use name::{Name, OwnedName};
@@ -20,7 +21,7 @@ pub struct Attribute<'a> {
 
 impl<'a> fmt::Display for Attribute<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}=\"{}\"", self.name, escape_str_attribute(self.value))
+        write!(f, "{}=\"{}\"", self.name, escape_str_attribute(self.value, &HashMap::new()))
     }
 }
 
@@ -74,7 +75,7 @@ impl OwnedAttribute {
 
 impl fmt::Display for OwnedAttribute {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}=\"{}\"", self.name, escape_str_attribute(&*self.value))
+        write!(f, "{}=\"{}\"", self.name, escape_str_attribute(&*self.value, &HashMap::new()))
     }
 }
 
